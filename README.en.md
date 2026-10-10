@@ -19,7 +19,8 @@ PDFMark collapses that into a single path — **read → highlight → annotate 
 and the file never leaves your machine.
 
 - Pure frontend, no backend. `npm run dev` and you're running; the build is a static bundle
-- PDFs and annotations live in browser IndexedDB, keyed by file fingerprint, restored on reload
+- PDFs, annotations and your reading position all live in browser IndexedDB, keyed by file
+  fingerprint, so a reload picks up where you left off
 - Two exports: a human-readable *Highlights & Notes*, and an *Annotation Package* built for an LLM
 - Optionally plug in your own model endpoint and generate the summary inside the app
 
@@ -50,6 +51,7 @@ and the file never leaves your machine.
 | Outline navigation | Reads the PDF's built-in bookmarks, collapsible tree, click to jump, current section follows the scroll; page-number jump works without bookmarks |
 | Text selection | Switch to select mode and drag like a web page, then `Ctrl / Cmd + C` |
 | Full-text search | `Ctrl / Cmd + F`, searches every page, matches are painted on the page, click a result to jump |
+| Reading progress | Remembers the page you stopped on per document and lands back there; the document you read last opens first |
 | Zoom | 50% – 300%, annotations stay anchored to the text |
 
 **Annotating**
@@ -258,7 +260,7 @@ If you need all three, use one of the tools above.
 
 ## Privacy
 
-- The PDF and all annotations live in browser IndexedDB (database name `pdfmark`).
+- The PDF, all annotations and your reading position live in browser IndexedDB (database name `pdfmark`).
 - The only network request happens when you click *Generate summary*; it goes to the endpoint
   **you** configured, and the payload is the annotation package.
 - No account, no analytics, no telemetry, no third-party scripts.
@@ -301,7 +303,7 @@ src/
 │   ├── search.ts           Cross-page search, hits mapped back to rects
 │   ├── writeback.ts        Marks → standard PDF annotations
 │   ├── templates.ts        Export templates and rendering
-│   ├── db.ts               IndexedDB (docs / marks)
+│   ├── db.ts               IndexedDB (docs / marks / progress)
 │   ├── export.ts           Markdown / annotation package / chunking / backup
 │   ├── llm.ts              OpenAI-compatible streaming client
 │   └── theme.ts            Colour table
@@ -348,6 +350,18 @@ bottom-left, bottom-right. The output is always a copy — the original in Index
 because PDF text is split into runs at arbitrary points and `the quick` can straddle a boundary
 inside one run without a space. Hit ranges are mapped back to rectangles through a
 character → run-index table, so they can be painted directly on the page.
+
+**Reading progress is its own record, not a field on the document.** A field would be simpler, but
+then every page turn would rewrite the whole PDF binary. It lives in a separate store (`progress`,
+keyed by the file fingerprint) and is written only after the current page has been still for 700 ms.
+Restoring has two traps of its own: page geometry arrives asynchronously, so scrolling to an offset
+measured on the first frame lands in the wrong place — it re-aligns for a few frames — and without a
+quiet period afterwards the first frame of the restore gets stored as progress, which is how a
+document ends up always reopening on page 1.
+
+**The current page is the one under the top of the viewport, not the topmost visible page.** The
+observer carries an 800px preload margin, so pages above the fold are in its callbacks too; taking
+the topmost of those shifts both the progress and the outline highlight one page backwards.
 
 ## Keyboard shortcuts
 

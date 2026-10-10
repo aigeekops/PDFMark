@@ -6,12 +6,25 @@ import type { DocMeta, Mark } from '../types';
  */
 
 const DB_NAME = 'pdfmark';
-const DB_VERSION = 2;
+/** v3 adds `progress` — where the reader stopped in each document. */
+const DB_VERSION = 3;
 const STORE_DOCS = 'docs';
 const STORE_MARKS = 'marks';
+const STORE_PROGRESS = 'progress';
 
 export interface StoredDoc extends DocMeta {
   data: ArrayBuffer;
+}
+
+/**
+ * Where the reader stopped. Its own store rather than a field on the document
+ * record — rewriting `docs` would write the whole PDF file back on every turn
+ * of the page.
+ */
+export interface ReadingProgress {
+  docId: string;
+  page: number;
+  updatedAt: number;
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -29,6 +42,9 @@ function openDb(): Promise<IDBDatabase> {
         const marks = db.createObjectStore(STORE_MARKS, { keyPath: 'id' });
         marks.createIndex('byDoc', 'docId', { unique: false });
         marks.createIndex('byPage', ['docId', 'page'], { unique: false });
+      }
+      if (!db.objectStoreNames.contains(STORE_PROGRESS)) {
+        db.createObjectStore(STORE_PROGRESS, { keyPath: 'docId' });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -66,6 +82,7 @@ export async function listDocs(): Promise<DocMeta[]> {
 
 export async function deleteDoc(id: string): Promise<void> {
   await tx(STORE_DOCS, 'readwrite', (s) => s.delete(id) as IDBRequest<undefined>);
+  await tx(STORE_PROGRESS, 'readwrite', (s) => s.delete(id) as IDBRequest<undefined>);
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const t = db.transaction(STORE_MARKS, 'readwrite');
@@ -111,6 +128,27 @@ export async function replaceMarks(docId: string, marks: Mark[]): Promise<void> 
     };
     req.onerror = () => reject(req.error);
   });
+}
+
+export async function putProgress(progress: ReadingProgress): Promise<void> {
+  await tx(STORE_PROGRESS, 'readwrite', (s) => s.put(progress) as IDBRequest<IDBValidKey>);
+}
+
+/** Where the reader stopped last time, or undefined for a document never opened. */
+export async function getProgress(docId: string): Promise<ReadingProgress | undefined> {
+  return tx<ReadingProgress | undefined>(STORE_PROGRESS, 'readonly', (s) =>
+    s.get(docId) as IDBRequest<ReadingProgress | undefined>,
+  );
+}
+
+/** The document the reader touched most recently, if any. */
+export async function latestProgress(): Promise<ReadingProgress | undefined> {
+  const all = await tx<ReadingProgress[]>(
+    STORE_PROGRESS,
+    'readonly',
+    (s) => s.getAll() as IDBRequest<ReadingProgress[]>,
+  );
+  return all.sort((a, b) => b.updatedAt - a.updatedAt)[0];
 }
 
 /** Cheap content fingerprint so re-opening the same file restores its marks. */

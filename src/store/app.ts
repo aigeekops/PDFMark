@@ -48,6 +48,11 @@ export interface AppState {
   scale: number;
   /** Page nearest the top of the viewport — drives the outline highlight. */
   currentPage: number;
+  /**
+   * Page to land on when this document opens, taken from the stored reading
+   * progress. Set by the open path, read once by the viewer.
+   */
+  restorePage: number | null;
   selectedId: string | null;
   /** Mark that was just drawn by hand — jumping the viewport for it would be jarring. */
   noScrollId: string | null;
@@ -88,6 +93,7 @@ export const store = createStore<AppState>({
   mode: 'annotate',
   scale: 1.2,
   currentPage: 1,
+  restorePage: null,
   selectedId: null,
   noScrollId: null,
   sidebar: 'notes',

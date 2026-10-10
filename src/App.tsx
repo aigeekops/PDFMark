@@ -68,14 +68,16 @@ export default function App() {
     return () => window.clearTimeout(t);
   }, [status]);
 
-  // Resume the most recent document on load — the whole point of local storage.
+  // Resume reading on load — the whole point of local storage. The document the
+  // reader touched last wins over the one added last.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const docs = await db.listDocs();
-        if (cancelled) return;
-        if (docs.length) await openDocById(docs[0].id);
+        const [docs, progress] = await Promise.all([db.listDocs(), db.latestProgress()]);
+        if (cancelled || !docs.length) return;
+        const resumeId = progress && docs.some((d) => d.id === progress.docId) ? progress.docId : docs[0].id;
+        await openDocById(resumeId);
       } finally {
         if (!cancelled) store.set({ ready: true });
       }
@@ -100,9 +102,13 @@ export default function App() {
         addedAt: stored.addedAt,
       };
       const existing = await db.listMarks(id);
+      // Resume where the reader stopped, clamped in case the file was replaced.
+      const progress = await db.getProgress(id);
+      const pageCount = meta.pageCount || pdfDoc.numPages;
+      const resume = progress ? Math.min(Math.max(progress.page, 1), pageCount) : 1;
       clearPageTextCache();
       clearSearch();
-      store.set({ doc: meta, pdf: pdfDoc, marks: existing, selectedId: null });
+      store.set({ doc: meta, pdf: pdfDoc, marks: existing, selectedId: null, restorePage: resume });
     } catch (err) {
       setToast(`打开失败：${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -132,7 +138,7 @@ export default function App() {
         await db.putDoc({ ...meta, data: buf });
         clearPageTextCache();
         clearSearch();
-        store.set({ doc: meta, pdf: pdfDoc, marks: [], selectedId: null });
+        store.set({ doc: meta, pdf: pdfDoc, marks: [], selectedId: null, restorePage: 1 });
       } catch (err) {
         setToast(`打开失败：${err instanceof Error ? err.message : String(err)}`);
       } finally {
