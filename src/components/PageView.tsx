@@ -51,8 +51,15 @@ export default function PageView({
   const [spans, setSpans] = useState<TextSpan[]>([]);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const [draft, setDraft] = useState<Rect | null>(null);
-  /** Zoom level the canvas currently shows, so a re-paint only happens on change. */
-  const [drawnScale, setDrawnScale] = useState<number | null>(null);
+
+  /**
+   * What the canvas currently shows. It has to carry the document identity, not
+   * just the zoom: switching files reuses this component instance, so a bare
+   * scale value would compare equal and leave the previous PDF's pixels on
+   * screen until a manual reload.
+   */
+  const pageKey = `${docId}:${pageNumber}`;
+  const [drawn, setDrawn] = useState<{ key: string; scale: number } | null>(null);
 
   // Page geometry, measured once at scale 1.
   useEffect(() => {
@@ -67,20 +74,32 @@ export default function PageView({
     };
   }, [pdf, pageNumber]);
 
-  // Canvas paint. Re-runs only when the zoom actually changes; pdf.js cancels
-  // any job still in flight when a new one starts.
+  // Canvas paint. Re-runs when the zoom changes, or when this slot shows a
+  // different page than before; pdf.js cancels any job still in flight when a
+  // new one starts.
   useEffect(() => {
-    if (!size || !active || drawnScale === scale) return;
+    if (!size || !active) return;
+    if (drawn && drawn.key === pageKey && drawn.scale === scale) return;
+
+    // Same page, new zoom: pdf.js repaints over the old pixels. Another page or
+    // another document: wipe first, so the foreign image never lingers while the
+    // new one is being fetched.
+    const samePage = drawn?.key === pageKey;
+    const canvas = canvasRef.current;
+    if (!samePage && canvas) {
+      canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
     let cancelled = false;
     let render: PageRender | null = null;
     (async () => {
       const page = await pdf.getPage(pageNumber);
-      const canvas = canvasRef.current;
-      if (cancelled || !canvas) return;
-      render = startPageRender(page, canvas, scale);
+      const target = canvasRef.current;
+      if (cancelled || !target) return;
+      render = startPageRender(page, target, scale);
       try {
         await render.done;
-        if (!cancelled) setDrawnScale(scale);
+        if (!cancelled) setDrawn({ key: pageKey, scale });
       } catch {
         // Superseded by a newer render — ignore.
       }
@@ -89,7 +108,7 @@ export default function PageView({
       cancelled = true;
       render?.cancel();
     };
-  }, [pdf, pageNumber, scale, size, active, drawnScale]);
+  }, [pdf, pageKey, pageNumber, scale, size, active, drawn]);
 
   useEffect(() => {
     onObserve(wrapRef.current, pageNumber);

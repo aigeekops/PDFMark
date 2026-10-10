@@ -11,6 +11,8 @@ export default function PdfViewer() {
   const [visible, setVisible] = useState<Set<number>>(() => new Set([1, 2, 3]));
   const ioRef = useRef<IntersectionObserver | null>(null);
   const nodes = useRef(new Map<number, HTMLElement>());
+  const viewerRef = useRef<HTMLDivElement>(null);
+  const docId = doc?.id ?? '';
 
   if (!ioRef.current && typeof IntersectionObserver !== 'undefined') {
     ioRef.current = new IntersectionObserver(
@@ -44,6 +46,19 @@ export default function PdfViewer() {
     const io = ioRef.current;
     return () => io?.disconnect();
   }, []);
+
+  /**
+   * A different document is a different page tree. The visibility set may hold
+   * page numbers that no longer exist, and the old scroll offset points at a
+   * page that is gone — both would leave the new document blank until the user
+   * scrolled. Reset them so page 1 paints straight away.
+   */
+  useEffect(() => {
+    if (!docId) return;
+    setVisible(new Set([1, 2, 3]));
+    setCurrentPage(1);
+    viewerRef.current?.scrollTo({ top: 0, behavior: 'instant' });
+  }, [docId]);
 
   const onObserve = useCallback((el: HTMLElement | null, page: number) => {
     const io = ioRef.current;
@@ -118,12 +133,18 @@ export default function PdfViewer() {
   if (!pdf || !doc) return null;
 
   return (
-    <div className="viewer" onMouseDown={(e) => {
-      if (e.target === e.currentTarget) selectMark(null);
-    }}>
+    <div
+      className="viewer"
+      ref={viewerRef}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) selectMark(null);
+      }}
+    >
       {Array.from({ length: doc.pageCount }, (_, i) => i + 1).map((pageNumber) => (
         <PageView
-          key={pageNumber}
+          // Keyed by document too: without it React reuses these instances when
+          // the file changes and the old page state (canvas, spans) survives.
+          key={`${doc.id}:${pageNumber}`}
           pdf={pdf}
           docId={doc.id}
           pageNumber={pageNumber}
