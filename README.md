@@ -4,10 +4,11 @@
 [![React](https://img.shields.io/badge/React-18-149eca.svg)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6.svg)](https://www.typescriptlang.org/)
 [![No backend](https://img.shields.io/badge/backend-none-3b8a5a.svg)](#数据与隐私)
+[![Live](https://img.shields.io/badge/demo-aigeekops.github.io%2FPDFMark-3b8a5a.svg)](https://aigeekops.github.io/PDFMark/)
 
 > 在浏览器里读 PDF，随手划线、写批注，一键导出成能直接丢给 AI 的标注包。
 
-**简体中文** | [English](./README.en.md)
+**简体中文** | [English](./README.en.md) | **在线试用 → https://aigeekops.github.io/PDFMark/**
 
 ![界面总览：左侧目录，中间原文与高亮，右侧批注面板](docs/screenshots/overview.png)
 
@@ -71,6 +72,9 @@ PDFMark 把这条链路收成一条：**读 → 划 → 批 → 导出 → 摘�
 
 ## 快速开始
 
+不想装环境就直接开 **https://aigeekops.github.io/PDFMark/** —— 和你本地跑的是同一份构建，
+静态托管，数据一样只留在浏览器里。
+
 ```bash
 npm install
 npm run dev        # 开发模式，默认 http://localhost:5173
@@ -83,6 +87,11 @@ npm run typecheck  # 只做类型检查
 
 `dist/` 是纯静态目录，GitHub Pages / Vercel / Netlify / 对象存储都能直接托管。
 `vite.config.ts` 里的 `base` 已设为相对路径，放在子目录（比如 `user.github.io/pdfmark/`）也能正常加载资源。
+
+本仓库已经带了一份 Pages 部署流程（`.github/workflows/deploy.yml`）：推 main 就 `npm ci` → `npm run build`
+→ 发布 `dist/`。**注意 Pages 的 Source 必须设成 "GitHub Actions"**，不能用默认的「分支根目录」——
+后者会把仓库根当成网站，而根目录的 `index.html` 是开发用的入口（`/src/main.tsx`），
+浏览器执行不了 TypeScript，打开就是一片空白。
 
 ## 完整链路
 

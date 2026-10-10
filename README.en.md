@@ -4,11 +4,12 @@
 [![React](https://img.shields.io/badge/React-18-149eca.svg)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6.svg)](https://www.typescriptlang.org/)
 [![No backend](https://img.shields.io/badge/backend-none-3b8a5a.svg)](#privacy)
+[![Live](https://img.shields.io/badge/demo-aigeekops.github.io%2FPDFMark-3b8a5a.svg)](https://aigeekops.github.io/PDFMark/)
 
 > Read a PDF in the browser, highlight and annotate as you go, then export the whole
 > reading session as one Markdown package you can hand straight to an LLM.
 
-[简体中文](./README.md) | **English**
+[简体中文](./README.md) | **English** | **Try it live → https://aigeekops.github.io/PDFMark/**
 
 ![The interface: outline on the left, page and highlights in the middle, notes on the right](docs/screenshots/overview.png)
 
@@ -74,6 +75,9 @@ and the file never leaves your machine.
 
 ## Getting started
 
+No setup required — just open **https://aigeekops.github.io/PDFMark/**. It is the same build
+you would run locally, statically hosted, with everything still kept in your browser.
+
 ```bash
 npm install
 npm run dev        # dev server, http://localhost:5173
@@ -87,6 +91,12 @@ Requires Node.js 18 or newer.
 `dist/` is a plain static directory — GitHub Pages, Vercel, Netlify or any object storage will serve it.
 `base` is set to a relative path in `vite.config.ts`, so it also works from a subdirectory
 (e.g. `user.github.io/pdfmark/`).
+
+This repository already ships a Pages workflow (`.github/workflows/deploy.yml`): pushing to `main`
+runs `npm ci` → `npm run build` → publishes `dist/`. **Set the Pages *Source* to "GitHub Actions"**,
+not the default "Deploy from a branch". The branch mode serves the repository root as the site, and
+the root `index.html` is the development entry (`/src/main.tsx`) — a TypeScript module the browser
+cannot execute, which renders as a blank page.
 
 ## The full loop
 
